@@ -6,7 +6,10 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
+
+if TYPE_CHECKING:
+    from .models import AttachmentMetadata
 
 LOGGER_NAME = "zotero_pdf2md"
 
@@ -58,3 +61,22 @@ def flatten(iterables: Iterable[Iterable[str]]) -> set[str]:
     for iterable in iterables:
         result.update(iterable)
     return result
+
+
+def compute_output_path(
+    attachment: "AttachmentMetadata", output_dir: Path
+) -> Path:
+    """Compute the expected output path for an attachment.
+
+    Args:
+        attachment: Attachment metadata describing the PDF.
+        output_dir: Base output directory for markdown files.
+
+    Returns:
+        The full path where the markdown file would be written.
+    """
+    parent_slug = slugify(
+        attachment.parent_title, attachment.parent_item_key or "item"
+    )
+    filename_base = slugify(attachment.title, attachment.attachment_key)
+    return output_dir / parent_slug / f"{filename_base}.md"

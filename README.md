@@ -87,6 +87,7 @@ zotero-pdf2md export \
 | `--limit N` | Stop after processing `N` attachments. |
 | `--chunk-size N` | Number of attachments to request per API call (default 100). |
 | `--overwrite` | Overwrite existing Markdown files instead of skipping. |
+| `--skip-existing` | Skip downloading PDFs if the target Markdown file already exists locally. |
 | `--dry-run` | List target files without downloading PDFs or writing Markdown. |
 | `--option/-o KEY=VALUE` | Forward options to `pymupdf4llm.to_markdown`. Use multiple times for multiple options. |
 | `--log-level LEVEL` | Logging verbosity (`critical`, `error`, `warning`, `info`, `debug`). Default: `info`. |
@@ -124,6 +125,7 @@ settings = ExportSettings(
     collections={"ABCD1234"},
     markdown_options={"write_images": "true"},
     overwrite=True,
+    skip_existing=False,  # Set to True to skip downloading PDFs if output exists
     chunk_size=50,
 )
 

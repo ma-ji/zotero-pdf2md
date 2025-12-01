@@ -102,6 +102,11 @@ def export_command(
         "--overwrite",
         help="Overwrite existing Markdown files instead of skipping.",
     ),
+    skip_existing: bool = typer.Option(
+        False,
+        "--skip-existing",
+        help="Skip downloading PDFs if the target Markdown file already exists locally.",
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -135,6 +140,7 @@ def export_command(
             collections=collection,
             tags=tag,
             overwrite=overwrite,
+            skip_existing=skip_existing,
             dry_run=dry_run,
             limit=limit,
             chunk_size=chunk_size,

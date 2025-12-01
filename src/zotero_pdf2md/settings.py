@@ -25,6 +25,7 @@ class ExportSettings:
 
     # Conversion options
     overwrite: bool = False
+    skip_existing: bool = False
     dry_run: bool = False
     limit: int | None = None
     chunk_size: int = 100
@@ -76,6 +77,7 @@ class ExportSettings:
         collections: Iterable[str] | None = None,
         tags: Iterable[str] | None = None,
         overwrite: bool = False,
+        skip_existing: bool = False,
         dry_run: bool = False,
         limit: int | None = None,
         chunk_size: int = 100,
@@ -91,6 +93,7 @@ class ExportSettings:
             collections=set(collections or ()),
             tags=set(tags or ()),
             overwrite=overwrite,
+            skip_existing=skip_existing,
             dry_run=dry_run,
             limit=limit,
             chunk_size=chunk_size,
@@ -120,6 +123,7 @@ class ExportSettings:
             f"Output directory: {self.output_dir}",
             f"Filters: {self.describe_filters()}",
             f"Overwrite existing files: {self.overwrite}",
+            f"Skip existing files: {self.skip_existing}",
             f"Dry run: {self.dry_run}",
             f"Chunk size: {self.chunk_size}",
             f"Max workers: {self.max_workers or 'auto'}",

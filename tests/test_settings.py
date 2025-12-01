@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 
 from zotero_pdf2md.settings import ExportSettings
+from zotero_pdf2md.utils import compute_output_path
+from zotero_pdf2md.models import AttachmentMetadata
 
 
 def test_settings_initialisation(tmp_path: Path) -> None:
@@ -41,7 +43,7 @@ def test_settings_initialisation(tmp_path: Path) -> None:
     assert "Library type: user" in summary[0]
     assert "Library ID: 654321" in summary[1]
     assert "Filters: collections=['Collection'], tags=['Tag'], limit=5" in summary[4]
-    assert "Max workers: 4" in summary[8]
+    assert "Max workers: 4" in summary[9]
 
 
 @pytest.mark.parametrize(
@@ -86,3 +88,61 @@ def test_settings_validation_errors(
     base.update(kwargs)
     with pytest.raises(error):
         ExportSettings(**base)
+
+
+def test_skip_existing_setting(tmp_path: Path) -> None:
+    """Test that skip_existing setting works correctly."""
+    output_dir = tmp_path / "output"
+
+    # Default should be False
+    settings_default = ExportSettings.from_cli_args(
+        api_key="test",
+        library_id="123",
+        library_type="user",
+        output_dir=output_dir,
+    )
+    assert settings_default.skip_existing is False
+
+    # When set to True
+    settings_enabled = ExportSettings.from_cli_args(
+        api_key="test",
+        library_id="123",
+        library_type="user",
+        output_dir=output_dir,
+        skip_existing=True,
+    )
+    assert settings_enabled.skip_existing is True
+
+    # Should appear in CLI summary
+    summary = settings_enabled.to_cli_summary()
+    assert any("Skip existing files: True" in line for line in summary)
+
+
+def test_compute_output_path(tmp_path: Path) -> None:
+    """Test that compute_output_path returns the expected path."""
+    attachment = AttachmentMetadata(
+        attachment_key="ABC123",
+        parent_item_key="PARENT1",
+        title="Test Paper",
+        parent_title="Author 2023",
+        filename="test.pdf",
+    )
+
+    result = compute_output_path(attachment, tmp_path)
+    expected = tmp_path / "Author-2023" / "Test-Paper.md"
+    assert result == expected
+
+
+def test_compute_output_path_with_fallback(tmp_path: Path) -> None:
+    """Test compute_output_path when title or parent_title are None."""
+    attachment = AttachmentMetadata(
+        attachment_key="ABC123",
+        parent_item_key="PARENT1",
+        title=None,
+        parent_title=None,
+        filename="test.pdf",
+    )
+
+    result = compute_output_path(attachment, tmp_path)
+    expected = tmp_path / "PARENT1" / "ABC123.md"
+    assert result == expected

@@ -11,7 +11,7 @@ from typing import Sequence
 from .converter import ConversionResult, convert_attachment_to_markdown
 from .models import AttachmentMetadata
 from .settings import ExportSettings
-from .utils import get_logger
+from .utils import compute_output_path, get_logger
 from .zotero import ZoteroClient
 
 logger = get_logger()
@@ -61,11 +61,34 @@ def export_library(settings: ExportSettings) -> ExportSummary:
         download_workers = max(1, download_workers)
         conversion_futures: dict = {}
 
+        # Pre-filter attachments when skip_existing is enabled
+        attachments_to_process: list[AttachmentMetadata] = []
+        for attachment in attachments:
+            if settings.skip_existing:
+                output_path = compute_output_path(attachment, settings.output_dir)
+                if output_path.exists():
+                    logger.info(
+                        "Skipping existing file (skip_existing): %s", output_path
+                    )
+                    results.append(
+                        ConversionResult(
+                            source=Path(f"{attachment.attachment_key}.pdf"),
+                            output=output_path,
+                            status="skipped",
+                        )
+                    )
+                    continue
+            attachments_to_process.append(attachment)
+
+        if not attachments_to_process:
+            logger.info("All attachments already have existing output files.")
+            return summarize_results(results)
+
         with ThreadPoolExecutor(
             max_workers=download_workers
         ) as download_executor, ProcessPoolExecutor() as conversion_executor:
             download_futures: dict = {}
-            for attachment in attachments:
+            for attachment in attachments_to_process:
                 pdf_path = temp_dir / f"{attachment.attachment_key}.pdf"
                 future = download_executor.submit(
                     download_and_save, settings, attachment.attachment_key, pdf_path
@@ -89,7 +112,7 @@ def export_library(settings: ExportSettings) -> ExportSummary:
                 logger.debug(
                     "Downloaded %d/%d attachments",
                     completed_downloads,
-                    total_attachments,
+                    len(attachments_to_process),
                 )
 
                 convert_future = conversion_executor.submit(
