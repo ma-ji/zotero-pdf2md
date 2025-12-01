@@ -63,9 +63,27 @@ def export_library(settings: ExportSettings) -> ExportSummary:
 
         # Pre-filter attachments when skip_existing is enabled
         attachments_to_process: list[AttachmentMetadata] = []
+        seen_output_paths: set[Path] = set()
+
         for attachment in attachments:
+            output_path = compute_output_path(attachment, settings.output_dir)
+
+            if output_path in seen_output_paths:
+                logger.info(
+                    "Skipping duplicate output path for attachment %s: %s",
+                    attachment.attachment_key,
+                    output_path,
+                )
+                results.append(
+                    ConversionResult(
+                        source=Path(f"{attachment.attachment_key}.pdf"),
+                        output=output_path,
+                        status="skipped",
+                    )
+                )
+                continue
+
             if settings.skip_existing:
-                output_path = compute_output_path(attachment, settings.output_dir)
                 if output_path.exists():
                     logger.info(
                         "Skipping existing file (skip_existing): %s", output_path
@@ -78,6 +96,8 @@ def export_library(settings: ExportSettings) -> ExportSummary:
                         )
                     )
                     continue
+
+            seen_output_paths.add(output_path)
             attachments_to_process.append(attachment)
 
         if not attachments_to_process:
