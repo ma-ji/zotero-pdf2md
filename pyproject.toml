@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zotero-files2md"
-version = "0.1.0"
-description = "Export Zotero-attached PDFs to Markdown using PyMuPDF4LLM."
+version = "0.1.1"
+description = "Export files on Zotero cloud to local markdown files."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
