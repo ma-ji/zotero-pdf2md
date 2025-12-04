@@ -118,15 +118,15 @@ def export_library(settings: ExportSettings) -> ExportSummary:
         ) as download_executor, ProcessPoolExecutor() as conversion_executor:
             download_futures: dict = {}
             for attachment in attachments_to_process:
-                pdf_path = temp_dir / f"{attachment.attachment_key}.pdf"
+                file_path = _temp_path_for_attachment(temp_dir, attachment)
                 future = download_executor.submit(
-                    download_and_save, settings, attachment.attachment_key, pdf_path
+                    download_and_save, settings, attachment.attachment_key, file_path
                 )
-                download_futures[future] = (attachment, pdf_path)
+                download_futures[future] = (attachment, file_path)
 
             completed_downloads = 0
             for future in as_completed(download_futures):
-                attachment, pdf_path = download_futures[future]
+                attachment, file_path = download_futures[future]
                 try:
                     future.result()
                 except Exception as exc:
@@ -145,7 +145,7 @@ def export_library(settings: ExportSettings) -> ExportSummary:
                 )
 
                 convert_future = conversion_executor.submit(
-                    convert_attachment_to_markdown, attachment, pdf_path, settings
+                    convert_attachment_to_markdown, attachment, file_path, settings
                 )
                 conversion_futures[convert_future] = attachment.attachment_key
 
