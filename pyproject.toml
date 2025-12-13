@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zotero-files2md"
-version = "0.1.1"
+version = "0.1.2"
 description = "Export files on Zotero cloud to local markdown files."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -17,6 +17,7 @@ dependencies = [
   "docling>=2.0.0",
   "pyzotero>=1.5.19",
   "typer>=0.12.3",
+  "joblib>=1.3.0",
 ]
 
 [project.optional-dependencies]

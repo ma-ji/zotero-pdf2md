@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import typer
 
@@ -33,7 +33,7 @@ def _configure_logging(level: str) -> None:
     logger.setLevel(LOG_LEVELS[level])
 
 
-def _parse_key_value_option(value: tuple[str, ...]) -> dict[str, str]:
+def _parse_key_value_option(value: list[str]) -> dict[str, str]:
     result: dict[str, str] = {}
     for item in value:
         if "=" not in item:
@@ -74,14 +74,14 @@ def export_command(
         case_sensitive=False,
         help="Zotero library type: 'user' or 'group'.",
     ),
-    collection: tuple[str, ...] = typer.Option(
-        (),
+    collection: List[str] = typer.Option(
+        None,
         "--collection",
         "-c",
         help="Filter by collection key (multiple allowed).",
     ),
-    tag: tuple[str, ...] = typer.Option(
-        (),
+    tag: List[str] = typer.Option(
+        None,
         "--tag",
         "-t",
         help="Filter by tag name (multiple allowed).",
@@ -121,8 +121,8 @@ def export_command(
             "writing Markdown output."
         ),
     ),
-    markdown_option: tuple[str, ...] = typer.Option(
-        (),
+    markdown_option: List[str] = typer.Option(
+        None,
         "--option",
         "-o",
         help=(
@@ -130,6 +130,26 @@ def export_command(
             "Currently accepted for forward compatibility; most options are "
             "not yet mapped into Docling's configuration."
         ),
+    ),
+    force_full_page_ocr: bool = typer.Option(
+        False,
+        "--force-full-page-ocr",
+        help="Force full-page OCR for better quality (slower).",
+    ),
+    do_picture_description: bool = typer.Option(
+        False,
+        "--do-picture-description",
+        help="Enable GenAI picture description (slower).",
+    ),
+    image_resolution_scale: float = typer.Option(
+        4.0,
+        "--image-resolution-scale",
+        help="Image resolution scale for Docling.",
+    ),
+    use_multi_gpu: bool = typer.Option(
+        True,
+        "--use-multi-gpu/--no-use-multi-gpu",
+        help="Distribute processing across available GPUs.",
     ),
     log_level: str = typer.Option(
         "info",
@@ -158,6 +178,10 @@ def export_command(
             limit=limit,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            force_full_page_ocr=force_full_page_ocr,
+            do_picture_description=do_picture_description,
+            image_resolution_scale=image_resolution_scale,
+            use_multi_gpu=use_multi_gpu,
             markdown_options=_parse_key_value_option(markdown_option),
         )
     except (FileNotFoundError, ValueError) as exc:

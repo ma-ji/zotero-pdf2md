@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
-from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import (
+    AcceleratorDevice,
+    AcceleratorOptions,
+    PdfPipelineOptions,
+    TableFormerMode,
+)
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling_core.types.doc.base import ImageRefMode
 
 from .models import AttachmentMetadata
 from .settings import ExportSettings
@@ -63,7 +71,7 @@ def convert_attachment_to_markdown(
         raise FileNotFoundError(msg)
 
     try:
-        markdown = _render_markdown(file_path, settings.markdown_options)
+        markdown = _render_markdown(file_path, settings)
         output_path.write_bytes(markdown.encode("utf-8"))
         logger.info("Wrote %s", output_path)
     except Exception as exc:
@@ -89,17 +97,55 @@ class ConversionResult:
     status: Literal["converted", "skipped", "dry-run"]
 
 
-def _render_markdown(file_path: Path, markdown_options: dict[str, Any]) -> str:
-    """Render a local document to Markdown using Docling.
+def get_pipeline_options(
+    force_full_page_ocr: bool,
+    do_picture_description: bool,
+    image_resolution_scale: float,
+    device: AcceleratorDevice = AcceleratorDevice.AUTO,
+    num_threads: int = 4,
+) -> PdfPipelineOptions:
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.generate_picture_images = True
+    pipeline_options.do_picture_description = do_picture_description
+    pipeline_options.do_formula_enrichment = True
+    pipeline_options.do_code_enrichment = True
+    pipeline_options.ocr_options.force_full_page_ocr = force_full_page_ocr
+    pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE
+    pipeline_options.table_structure_options.do_cell_matching = True
+    pipeline_options.images_scale = image_resolution_scale
 
-    Currently ``markdown_options`` is accepted for forward compatibility but
-    not actively mapped into Docling's configuration.
-    """
-    converter = DocumentConverter()
+    pipeline_options.accelerator_options = AcceleratorOptions(
+        num_threads=num_threads, device=device
+    )
+    return pipeline_options
+
+
+def _render_markdown(
+    file_path: Path,
+    settings: ExportSettings,
+    device: AcceleratorDevice = AcceleratorDevice.AUTO,
+) -> str:
+    """Render a local document to Markdown using Docling."""
+    pipeline_options = get_pipeline_options(
+        force_full_page_ocr=settings.force_full_page_ocr,
+        do_picture_description=settings.do_picture_description,
+        image_resolution_scale=settings.image_resolution_scale,
+        device=device,
+    )
+
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        }
+    )
     result = converter.convert(str(file_path))
 
     if result.document is None:
         msg = f"Docling conversion failed for {file_path}: {result.status}"
         raise RuntimeError(msg)
 
-    return result.document.export_to_markdown()
+    # Use ImageRefMode.EMBEDDED as per reference
+    return result.document.export_to_markdown(
+        image_mode=ImageRefMode.EMBEDDED,
+        page_break_placeholder="\n\n--- Page Break ---\n\n",
+    )

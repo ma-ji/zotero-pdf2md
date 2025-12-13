@@ -30,6 +30,13 @@ class ExportSettings:
     limit: int | None = None
     chunk_size: int = 100
     max_workers: int | None = None
+    
+    # Docling specific options
+    force_full_page_ocr: bool = False
+    do_picture_description: bool = False
+    image_resolution_scale: float = 4.0
+    use_multi_gpu: bool = True
+
     markdown_options: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -82,6 +89,10 @@ class ExportSettings:
         limit: int | None = None,
         chunk_size: int = 100,
         max_workers: int | None = None,
+        force_full_page_ocr: bool = False,
+        do_picture_description: bool = False,
+        image_resolution_scale: float = 4.0,
+        use_multi_gpu: bool = True,
         markdown_options: Mapping[str, Any] | None = None,
     ) -> "ExportSettings":
         """Instantiate settings from CLI-friendly arguments."""
@@ -98,6 +109,10 @@ class ExportSettings:
             limit=limit,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            force_full_page_ocr=force_full_page_ocr,
+            do_picture_description=do_picture_description,
+            image_resolution_scale=image_resolution_scale,
+            use_multi_gpu=use_multi_gpu,
             markdown_options=dict(markdown_options or {}),
         )
 

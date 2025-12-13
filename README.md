@@ -8,6 +8,8 @@ Export file attachments (for example PDF, Word, HTML, CSV, images) stored in a Z
 - Authenticates with a Zotero API key (user or group libraries supported)
 - Discovers imported file attachments with optional collection/tag filters (collection **keys**)
 - Downloads eligible attachments (imported files only) and converts them to Markdown via Docling
+- Supports **Multi-GPU** acceleration for document conversion (automatic distribution across available GPUs)
+- Configurable Docling pipeline (OCR, picture description, image resolution)
 - Organises exported Markdown by parent item and attachment titles
 - Supports dry-run mode, overwrite behaviour, chunk-size tuning
 - Provides both a CLI and a Python API for programmatic usage
@@ -70,8 +72,12 @@ zotero-files2md export \
     --tag "LLM" \
     --limit 20 \
     --chunk-size 50 \
+    --max-workers 8 \
     --overwrite \
-    --option ignore_images=true \
+    --force-full-page-ocr \
+    --do-picture-description \
+    --image-resolution-scale 4.0 \
+    --use-multi-gpu \
     --log-level debug
 ```
 
@@ -83,20 +89,25 @@ zotero-files2md export \
 
 ### Options
 
-| Option | Description |
-| --- | --- |
-| `--api-key` | Zotero Web API key (prompted if not provided; honours `ZOTERO_API_KEY`). |
-| `--library-id` | Target Zotero library ID (numeric; honours `ZOTERO_LIBRARY_ID`). |
-| `--library-type` | Library type (`user` or `group`). Default: `user`. |
-| `--collection/-c KEY` | Filter attachments by collection key (repeatable; obtain keys via the Zotero web UI or API). |
-| `--tag/-t NAME` | Filter attachments by tag name (repeatable). |
-| `--limit N` | Stop after processing `N` attachments. |
-| `--chunk-size N` | Number of attachments to request per API call (default 100). |
-| `--overwrite` | Overwrite existing Markdown files instead of skipping. |
-| `--skip-existing` | Skip downloading attachments if the target Markdown file already exists locally. |
-| `--dry-run` | List target files without downloading attachments or writing Markdown. |
-| `--option/-o KEY=VALUE` | Forward options to the Docling converter (currently accepted for forward compatibility; most options are not yet mapped into Docling's configuration). |
-| `--log-level LEVEL` | Logging verbosity (`critical`, `error`, `warning`, `info`, `debug`). Default: `info`. |
+| Option | Description | Default |
+| --- | --- | --- |
+| `--api-key` | Zotero Web API key (prompted if not provided; honours `ZOTERO_API_KEY`). | - |
+| `--library-id` | Target Zotero library ID (numeric; honours `ZOTERO_LIBRARY_ID`). | - |
+| `--library-type` | Library type (`user` or `group`). | `user` |
+| `--collection/-c KEY` | Filter attachments by collection key (repeatable; obtain keys via the Zotero web UI or API). | - |
+| `--tag/-t NAME` | Filter attachments by tag name (repeatable). | - |
+| `--limit N` | Stop after processing `N` attachments. | None |
+| `--chunk-size N` | Number of attachments to request per API call. | 100 |
+| `--max-workers N` | Upper bound on parallel download/conversion workers (auto-detected if unset). | None (Auto/12) |
+| `--overwrite` | Overwrite existing Markdown files instead of skipping. | False |
+| `--skip-existing` | Skip downloading attachments if the target Markdown file already exists locally. | False |
+| `--dry-run` | List target files without downloading attachments or writing Markdown. | False |
+| `--force-full-page-ocr` | Force full-page OCR for better quality (slower). | False |
+| `--do-picture-description` | Enable GenAI picture description (slower). | False |
+| `--image-resolution-scale N` | Image resolution scale for Docling. | 4.0 |
+| `--use-multi-gpu` / `--no-use-multi-gpu` | Distribute processing across available GPUs. | True |
+| `--option/-o KEY=VALUE` | Forward options to the Docling converter (currently accepted for forward compatibility). | - |
+| `--log-level LEVEL` | Logging verbosity (`critical`, `error`, `warning`, `info`, `debug`). | `info` |
 
 ### Markdown Output Layout
 
@@ -133,6 +144,10 @@ settings = ExportSettings(
     overwrite=True,
     skip_existing=False,  # Set to True to skip downloading attachments if output exists
     chunk_size=50,
+    max_workers=8,
+    use_multi_gpu=True,
+    force_full_page_ocr=False,
+    do_picture_description=False,
 )
 
 summary = export_library(settings)

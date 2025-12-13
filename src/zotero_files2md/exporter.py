@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+import gc
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Sequence
+import warnings
 
-from .converter import ConversionResult, convert_attachment_to_markdown
+import torch
+from joblib import Parallel, delayed
+
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import AcceleratorDevice
+
+from .converter import (
+    ConversionResult,
+    convert_attachment_to_markdown,
+    get_pipeline_options,
+)
 from .models import AttachmentMetadata
 from .settings import ExportSettings
 from .utils import compute_output_path, get_logger
@@ -34,7 +47,11 @@ def export_library(settings: ExportSettings) -> ExportSummary:
     All imported file attachments are considered; conversion is delegated to
     Docling, which may skip unsupported formats.
     """
-    logger.info("Starting export via Zotero Web API")
+    # Suppress warnings
+    warnings.filterwarnings("ignore")
+    warnings.simplefilter(action="ignore", category=FutureWarning)
+
+    logger.info("Starting export via Docling and Zotero Web API")
     for line in settings.to_cli_summary():
         logger.info(line)
 
@@ -44,9 +61,7 @@ def export_library(settings: ExportSettings) -> ExportSummary:
         temp_dir = Path(tmp_dir)
 
         with ZoteroClient(settings) as client:
-            # Fetch all imported attachments regardless of MIME type; Docling
-            # will perform format-specific handling and may skip unsupported
-            # files during conversion.
+            # Fetch all imported attachments regardless of MIME type
             attachments = list(client.iter_attachments())
 
         total_attachments = len(attachments)
@@ -63,10 +78,6 @@ def export_library(settings: ExportSettings) -> ExportSummary:
                     convert_attachment_to_markdown(attachment, file_path, settings)
                 )
             return summarize_results(results)
-
-        download_workers = settings.max_workers or min(8, total_attachments)
-        download_workers = max(1, download_workers)
-        conversion_futures: dict = {}
 
         # Pre-filter attachments when skip_existing is enabled
         attachments_to_process: list[AttachmentMetadata] = []
@@ -113,64 +124,112 @@ def export_library(settings: ExportSettings) -> ExportSummary:
             logger.info("All attachments already have existing output files.")
             return summarize_results(results)
 
-        with ThreadPoolExecutor(
-            max_workers=download_workers
-        ) as download_executor, ProcessPoolExecutor() as conversion_executor:
-            download_futures: dict = {}
-            for attachment in attachments_to_process:
-                file_path = _temp_path_for_attachment(temp_dir, attachment)
-                future = download_executor.submit(
-                    download_and_save, settings, attachment.attachment_key, file_path
-                )
-                download_futures[future] = (attachment, file_path)
-
-            completed_downloads = 0
-            for future in as_completed(download_futures):
-                attachment, file_path = download_futures[future]
-                try:
-                    future.result()
-                except Exception as exc:
-                    logger.exception(
-                        "Failed to download attachment %s: %s",
-                        attachment.attachment_key,
-                        exc,
+        # Warmup
+        logger.info("Performing model warmup (CPU)...")
+        try:
+            warmup_pipeline_options = get_pipeline_options(
+                force_full_page_ocr=settings.force_full_page_ocr,
+                do_picture_description=settings.do_picture_description,
+                image_resolution_scale=settings.image_resolution_scale,
+                device=AcceleratorDevice.CPU,
+                num_threads=1,
+            )
+            DocumentConverter(
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(
+                        pipeline_options=warmup_pipeline_options
                     )
-                    continue
+                }
+            )
+            logger.info("Model warmup complete.")
+        except Exception as e:
+            logger.warning(f"Model warmup warning: {e}")
 
-                completed_downloads += 1
-                logger.debug(
-                    "Downloaded %d/%d attachments",
-                    completed_downloads,
-                    len(attachments_to_process),
-                )
+        # GPU Detection
+        num_gpus = 0
+        try:
+            if torch.cuda.is_available():
+                num_gpus = torch.cuda.device_count()
+            logger.info(f"Detected {num_gpus} GPUs available.")
+        except Exception as e:
+            logger.warning(f"Could not detect GPUs: {e}")
 
-                convert_future = conversion_executor.submit(
-                    convert_attachment_to_markdown, attachment, file_path, settings
-                )
-                conversion_futures[convert_future] = attachment.attachment_key
-
-            total_to_convert = len(conversion_futures)
-            if total_to_convert == 0:
-                logger.info("No downloaded attachments were ready for conversion.")
-            else:
-                completed_conversions = 0
-                for future in as_completed(conversion_futures):
-                    key = conversion_futures[future]
-                    try:
-                        result = future.result()
-                        results.append(result)
-                        completed_conversions += 1
-                        logger.debug(
-                            "Converted %d/%d attachments",
-                            completed_conversions,
-                            total_to_convert,
-                        )
-                    except Exception as exc:
-                        logger.exception(
-                            "Failed to convert attachment %s: %s", key, exc
-                        )
+        # Parallel Execution
+        n_jobs = settings.max_workers or 4
+        # If user set max_workers, use it. If not, default to something reasonable.
+        # Reference used NJOBS=12. 
+        if settings.max_workers is None:
+             n_jobs = 12 # Default from reference
+        
+        logger.info(f"Starting parallel processing with {n_jobs} jobs...")
+        
+        # We need to make sure process_attachment_task can be pickled
+        # It is defined below
+        
+        parallel_results = Parallel(n_jobs=n_jobs, backend="loky")(
+            delayed(_process_attachment_task)(
+                attachment, settings, temp_dir, i, num_gpus
+            )
+            for i, attachment in enumerate(attachments_to_process)
+        )
+        
+        results.extend(parallel_results)
 
     return summarize_results(results)
+
+
+def _process_attachment_task(
+    attachment: AttachmentMetadata,
+    settings: ExportSettings,
+    temp_dir: Path,
+    job_index: int,
+    num_gpus_available: int,
+) -> ConversionResult:
+    """Worker function for processing a single attachment."""
+    # Handle GPU assignment
+    if settings.use_multi_gpu and num_gpus_available > 0:
+        gpu_idx = job_index % num_gpus_available
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_idx)
+    
+    file_path = _temp_path_for_attachment(temp_dir, attachment)
+    
+    try:
+        download_and_save(settings, attachment.attachment_key, file_path)
+    except Exception as exc:
+        logger.error(
+            "Failed to download attachment %s: %s",
+            attachment.attachment_key,
+            exc,
+            exc_info=True
+        )
+        # Return a failed result
+        output_path = compute_output_path(attachment, settings.output_dir)
+        return ConversionResult(
+            source=file_path,
+            output=output_path,
+            status="skipped"
+        )
+    
+    # Convert
+    try:
+        result = convert_attachment_to_markdown(attachment, file_path, settings)
+    except Exception as exc:
+        logger.error(
+            "Error converting %s: %s", file_path, exc, exc_info=True
+        )
+        output_path = compute_output_path(attachment, settings.output_dir)
+        result = ConversionResult(
+             source=file_path,
+             output=output_path,
+             status="skipped"
+        )
+        
+    # Cleanup memory
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+    
+    return result
 
 
 def _temp_path_for_attachment(base_dir: Path, attachment: AttachmentMetadata) -> Path:
