@@ -7,6 +7,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
+from multiprocessing import get_context
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import local
@@ -212,6 +213,7 @@ def export_library(settings: ExportSettings) -> ExportSummary:
                             max_workers=1,
                             initializer=_init_worker,
                             initargs=(gpu_id,),
+                            mp_context=get_context("spawn"),
                         )
                     )
                     for gpu_id in gpu_ids
