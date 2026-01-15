@@ -85,8 +85,14 @@ def export_command(
         "--max-workers",
         help=(
             "Upper bound on parallel download/conversion workers (default auto). "
-            "In multi-GPU mode, values above the GPU count will run multiple workers per GPU."
+            "In multi-GPU mode, total workers are additionally capped by "
+            "GPU_count * --workers-per-gpu."
         ),
+    ),
+    workers_per_gpu: int = typer.Option(
+        1,
+        "--workers-per-gpu",
+        help="Maximum worker processes per GPU in multi-GPU mode (lower to reduce OOM risk).",
     ),
     overwrite: bool = typer.Option(
         False,
@@ -153,6 +159,7 @@ def export_command(
             limit=limit,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            workers_per_gpu=workers_per_gpu,
             force_full_page_ocr=force_full_page_ocr,
             do_picture_description=do_picture_description,
             image_resolution_scale=image_resolution_scale,
@@ -228,8 +235,14 @@ def export_batch_command(
         "--max-workers",
         help=(
             "Upper bound on parallel download/conversion workers (default auto). "
-            "In multi-GPU mode, values above the GPU count will run multiple workers per GPU."
+            "In multi-GPU mode, total workers are additionally capped by "
+            "GPU_count * --workers-per-gpu."
         ),
+    ),
+    workers_per_gpu: int = typer.Option(
+        1,
+        "--workers-per-gpu",
+        help="Maximum worker processes per GPU in multi-GPU mode (lower to reduce OOM risk).",
     ),
     overwrite: bool = typer.Option(
         False,
@@ -301,6 +314,7 @@ def export_batch_command(
             limit=limit,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            workers_per_gpu=workers_per_gpu,
             force_full_page_ocr=force_full_page_ocr,
             do_picture_description=do_picture_description,
             image_resolution_scale=image_resolution_scale,

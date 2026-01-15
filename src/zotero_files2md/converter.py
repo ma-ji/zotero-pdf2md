@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 from dataclasses import dataclass
 from pathlib import Path
 from threading import local
@@ -60,6 +61,40 @@ def convert_attachment_to_markdown(
 
     try:
         markdown = _render_markdown(file_path, settings)
+    except Exception as exc:
+        if _is_cuda_oom(exc):
+            logger.warning(
+                "CUDA out-of-memory while converting %s; retrying conversion on CPU.",
+                file_path,
+            )
+            _reset_converter_cache()
+            _free_torch_memory()
+            try:
+                from docling.datamodel.pipeline_options import AcceleratorDevice
+
+                markdown = _render_markdown(
+                    file_path, settings, device=AcceleratorDevice.CPU
+                )
+            except Exception as retry_exc:
+                logger.error(
+                    "Error converting %s after CPU retry: %s",
+                    file_path,
+                    retry_exc,
+                    exc_info=True,
+                )
+                return ConversionResult(
+                    source=file_path,
+                    output=output_path,
+                    status="skipped",
+                )
+        else:
+            logger.error("Error converting %s: %s", file_path, exc, exc_info=True)
+            return ConversionResult(
+                source=file_path,
+                output=output_path,
+                status="skipped",
+            )
+    try:
         output_path.write_bytes(markdown.encode("utf-8"))
         logger.info("Wrote %s", output_path)
     except Exception as exc:
@@ -130,7 +165,7 @@ def _render_markdown(
     from docling_core.types.doc.base import ImageRefMode
 
     if device is None:
-        device = AcceleratorDevice.AUTO
+        device = _resolve_docling_device(settings, AcceleratorDevice)
 
     cache_key = (
         settings.force_full_page_ocr,
@@ -181,3 +216,64 @@ def _render_markdown(
         image_mode=image_mode,
         page_break_placeholder="\n\n--- Page Break ---\n\n",
     )
+
+
+def _resolve_docling_device(settings: ExportSettings, device_type) -> "AcceleratorDevice":
+    if not settings.use_multi_gpu:
+        return device_type.AUTO
+    try:
+        import torch
+    except Exception:
+        return device_type.AUTO
+    try:
+        if torch.cuda.is_available():
+            return device_type.CUDA
+    except Exception:
+        return device_type.AUTO
+    return device_type.AUTO
+
+
+def _reset_converter_cache() -> None:
+    for name in ("key", "converter"):
+        if hasattr(_converter_local, name):
+            delattr(_converter_local, name)
+
+
+def _is_cuda_oom(exc: BaseException) -> bool:
+    def iter_chain(err: BaseException):
+        seen: set[int] = set()
+        current: BaseException | None = err
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            yield current
+            current = current.__cause__ or current.__context__
+
+    for err in iter_chain(exc):
+        message = str(err).lower()
+        if "cuda out of memory" in message:
+            return True
+        if "out of memory" in message and "cuda" in message:
+            return True
+        try:
+            import torch
+
+            if isinstance(err, torch.OutOfMemoryError):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _free_torch_memory() -> None:
+    try:
+        import torch
+    except Exception:
+        return
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        try:
+            torch.cuda.ipc_collect()
+        except Exception:
+            pass
+    gc.collect()

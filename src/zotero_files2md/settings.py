@@ -70,6 +70,7 @@ class ExportSettings:
     limit: int | None = None
     chunk_size: int = 100
     max_workers: int | None = None
+    workers_per_gpu: int = 1
     
     # Docling specific options
     force_full_page_ocr: bool = False
@@ -105,6 +106,10 @@ class ExportSettings:
             msg = "max_workers must be positive when provided."
             raise ValueError(msg)
 
+        if self.workers_per_gpu <= 0:
+            msg = "workers_per_gpu must be a positive integer."
+            raise ValueError(msg)
+
         self.image_processing = self.image_processing.strip().lower()  # type: ignore[assignment]
         if self.image_processing not in {"embed", "placeholder", "drop"}:
             msg = (
@@ -133,6 +138,7 @@ class ExportSettings:
         limit: int | None = None,
         chunk_size: int = 100,
         max_workers: int | None = None,
+        workers_per_gpu: int = 1,
         force_full_page_ocr: bool = False,
         do_picture_description: bool = False,
         image_resolution_scale: float = 4.0,
@@ -152,6 +158,7 @@ class ExportSettings:
             limit=limit,
             chunk_size=chunk_size,
             max_workers=max_workers,
+            workers_per_gpu=workers_per_gpu,
             force_full_page_ocr=force_full_page_ocr,
             do_picture_description=do_picture_description,
             image_resolution_scale=image_resolution_scale,
@@ -184,6 +191,7 @@ class ExportSettings:
             f"Dry run: {self.dry_run}",
             f"Chunk size: {self.chunk_size}",
             f"Max workers: {self.max_workers or 'auto'}",
+            f"Workers per GPU: {self.workers_per_gpu}",
             f"Force full page OCR: {self.force_full_page_ocr}",
             f"Picture description: {self.do_picture_description}",
             f"Image resolution scale: {self.image_resolution_scale}",

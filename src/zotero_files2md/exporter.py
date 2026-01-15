@@ -194,23 +194,37 @@ def export_library(settings: ExportSettings) -> ExportSummary:
             gpu_count = 0
 
         if settings.use_multi_gpu and gpu_count > 0:
-            requested_workers = settings.max_workers or gpu_count
-            total_workers = max(1, min(requested_workers, len(attachments_to_process)))
+            max_workers_total = settings.max_workers or len(attachments_to_process)
+            max_workers_by_gpu = gpu_count * settings.workers_per_gpu
+            total_workers = max(
+                1,
+                min(
+                    len(attachments_to_process),
+                    max_workers_total,
+                    max_workers_by_gpu,
+                ),
+            )
             gpus_used = min(gpu_count, total_workers)
             gpu_ids = list(range(gpu_count))[:gpus_used]
 
             base_workers = total_workers // gpus_used
             remainder = total_workers % gpus_used
-            workers_per_gpu = {
+            processes_per_gpu = {
                 gpu_id: base_workers + (1 if idx < remainder else 0)
                 for idx, gpu_id in enumerate(gpu_ids)
             }
             logger.info(
-                "Processing %d attachment(s) with %d GPU worker process(es) across %d GPU(s).",
+                "Processing %d attachment(s) with %d GPU worker process(es) across %d GPU(s) (<= %d process(es) per GPU).",
                 len(attachments_to_process),
                 total_workers,
                 gpus_used,
+                settings.workers_per_gpu,
             )
+            if total_workers > gpus_used:
+                logger.warning(
+                    "Multiple worker processes per GPU can trigger CUDA out-of-memory errors. "
+                    "Consider lowering --workers-per-gpu or disabling picture description."
+                )
 
             processed: list[ConversionResult | None] = [None] * len(
                 attachments_to_process
@@ -219,7 +233,7 @@ def export_library(settings: ExportSettings) -> ExportSummary:
                 executors_by_gpu = {
                     gpu_id: stack.enter_context(
                         ProcessPoolExecutor(
-                            max_workers=workers_per_gpu[gpu_id],
+                            max_workers=processes_per_gpu[gpu_id],
                             initializer=_init_worker,
                             initargs=(gpu_id,),
                             mp_context=get_context("spawn"),
@@ -230,7 +244,7 @@ def export_library(settings: ExportSettings) -> ExportSummary:
                 executor_slots = [
                     executors_by_gpu[gpu_id]
                     for gpu_id in gpu_ids
-                    for _ in range(workers_per_gpu[gpu_id])
+                    for _ in range(processes_per_gpu[gpu_id])
                 ]
                 future_to_index = {}
                 for idx, attachment in enumerate(attachments_to_process):

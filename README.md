@@ -120,7 +120,8 @@ zotero-files2md export-batch \
 | `--tag/-t NAME` | Filter attachments by tag name (repeatable). | - |
 | `--limit N` | Stop after processing `N` attachments. | None |
 | `--chunk-size N` | Number of attachments to request per API call. | 100 |
-| `--max-workers N` | Upper bound on parallel download/conversion workers (auto-detected if unset; in multi-GPU mode, values above GPU count run multiple workers per GPU). | Auto (up to 12) |
+| `--max-workers N` | Upper bound on parallel download/conversion workers (auto-detected if unset; in multi-GPU mode, total workers are capped by `GPU_count * --workers-per-gpu`). | Auto (up to 12) |
+| `--workers-per-gpu N` | Maximum worker processes per GPU in multi-GPU mode (lower to reduce OOM risk). | 1 |
 | `--overwrite` | Overwrite existing Markdown files instead of skipping. | False |
 | `--dry-run` | List target files without downloading attachments or writing Markdown. | False |
 | `--force-full-page-ocr` | Force full-page OCR for better quality (slower). | False |
@@ -198,5 +199,6 @@ pytest
 - The Zotero Web API only provides access to attachments that are stored in Zotero (`imported_file` / `imported_url`). Linked file attachments (`linked_file`) are skipped automatically.
 - Ensure the API key has sufficient permissions for the target library (read at minimum).
 - API rate limits apply; adjust `--chunk-size` or insert breaks between runs if necessary.
+- If a conversion triggers a CUDA out-of-memory error, the exporter retries that attachment on CPU.
 - When running in `--dry-run` mode, attachments are enumerated but files are not downloaded and no Markdown is written.
 - When one or more `--collection` keys are supplied, only those collections are queried (via the Zotero `collection_items` endpoint). Provide collection **keys** rather than names; you can copy the key from the Zotero web UI URL.

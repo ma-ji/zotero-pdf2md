@@ -38,6 +38,7 @@ def test_settings_initialisation(tmp_path: Path) -> None:
     assert settings.limit == 5
     assert settings.chunk_size == 25
     assert settings.max_workers == 4
+    assert settings.workers_per_gpu == 1
     assert settings.image_processing == "placeholder"
 
     summary = settings.to_cli_summary()
@@ -45,6 +46,7 @@ def test_settings_initialisation(tmp_path: Path) -> None:
     assert "Library ID: 654321" in summary[1]
     assert "Filters: collections=['Collection'], tags=['Tag'], limit=5" in summary[4]
     assert "Max workers: 4" in summary[8]
+    assert "Workers per GPU: 1" in summary
     assert "Image processing: placeholder" in summary
 
 
@@ -73,6 +75,15 @@ def test_settings_initialisation(tmp_path: Path) -> None:
                 "library_id": "1",
                 "library_type": "user",
                 "max_workers": 0,
+            },
+            ValueError,
+        ),
+        (
+            {
+                "api_key": "abc",
+                "library_id": "1",
+                "library_type": "user",
+                "workers_per_gpu": 0,
             },
             ValueError,
         ),
