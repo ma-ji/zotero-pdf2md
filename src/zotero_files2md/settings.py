@@ -9,6 +9,7 @@ from typing import Iterable, Literal, Sequence
 
 LibraryType = Literal["user", "group"]
 ImageProcessing = Literal["embed", "placeholder", "drop"]
+ReferenceFolderName = Literal["citation-key", "item-title"]
 
 
 def parse_collection_output_pairs(values: Iterable[str] | None) -> dict[str, Path]:
@@ -59,6 +60,7 @@ class ExportSettings:
     library_id: str
     library_type: LibraryType
     output_dir: Path
+    reference_folder_name: ReferenceFolderName = "citation-key"
 
     # Filters
     collections: set[str] = field(default_factory=set)
@@ -118,6 +120,14 @@ class ExportSettings:
             )
             raise ValueError(msg)
 
+        self.reference_folder_name = self.reference_folder_name.strip().lower()  # type: ignore[assignment]
+        if self.reference_folder_name not in {"citation-key", "item-title"}:
+            msg = (
+                "reference_folder_name must be one of: 'citation-key', 'item-title'. "
+                f"Got {self.reference_folder_name!r}."
+            )
+            raise ValueError(msg)
+
         self.output_dir = self.output_dir.expanduser().resolve()
 
         self.collections = {c.strip() for c in self.collections if c.strip()}
@@ -144,6 +154,7 @@ class ExportSettings:
         image_resolution_scale: float = 4.0,
         image_processing: ImageProcessing = "embed",
         use_multi_gpu: bool = True,
+        reference_folder_name: ReferenceFolderName = "citation-key",
     ) -> "ExportSettings":
         """Instantiate settings from CLI-friendly arguments."""
         return cls(
@@ -164,6 +175,7 @@ class ExportSettings:
             image_resolution_scale=image_resolution_scale,
             image_processing=image_processing,
             use_multi_gpu=use_multi_gpu,
+            reference_folder_name=reference_folder_name,
         )
 
     def describe_filters(self) -> str:
@@ -186,6 +198,7 @@ class ExportSettings:
             f"Library ID: {self.library_id}",
             "Using Zotero Web API",
             f"Output directory: {self.output_dir}",
+            f"Reference folder name: {self.reference_folder_name}",
             f"Filters: {self.describe_filters()}",
             f"Overwrite existing files: {self.overwrite}",
             f"Dry run: {self.dry_run}",

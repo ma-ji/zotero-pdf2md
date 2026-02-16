@@ -16,6 +16,7 @@ class AttachmentMetadata:
     title: str | None
     parent_title: str | None
     filename: str | None
+    parent_citation_key: str | None = None
     collections: tuple[str, ...] = field(default_factory=tuple)
     tags: tuple[str, ...] = field(default_factory=tuple)
     date_added: datetime | None = None
@@ -28,6 +29,7 @@ class AttachmentMetadata:
             "parent_item_key": self.parent_item_key,
             "title": self.title,
             "parent_title": self.parent_title,
+            "parent_citation_key": self.parent_citation_key,
             "filename": self.filename,
             "collections": list(self.collections),
             "tags": list(self.tags),

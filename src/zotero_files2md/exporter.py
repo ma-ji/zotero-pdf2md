@@ -139,7 +139,11 @@ def export_library(settings: ExportSettings) -> ExportSummary:
 
         if settings.dry_run:
             for attachment in attachments:
-                output_path = compute_output_path(attachment, settings.output_dir)
+                output_path = compute_output_path(
+                    attachment,
+                    settings.output_dir,
+                    settings.reference_folder_name,
+                )
                 results.append(
                     ConversionResult(
                         source=Path(attachment.filename or attachment.attachment_key),
@@ -153,7 +157,11 @@ def export_library(settings: ExportSettings) -> ExportSummary:
         seen_output_paths: set[Path] = set()
 
         for attachment in attachments:
-            output_path = compute_output_path(attachment, settings.output_dir)
+            output_path = compute_output_path(
+                attachment,
+                settings.output_dir,
+                settings.reference_folder_name,
+            )
 
             if output_path in seen_output_paths:
                 logger.info(
@@ -350,7 +358,11 @@ def _process_attachment(
     settings: ExportSettings,
     temp_dir: Path,
 ) -> ConversionResult:
-    output_path = compute_output_path(attachment, settings.output_dir)
+    output_path = compute_output_path(
+        attachment,
+        settings.output_dir,
+        settings.reference_folder_name,
+    )
     if output_path.exists() and not settings.overwrite:
         return ConversionResult(
             source=Path(attachment.filename or attachment.attachment_key),

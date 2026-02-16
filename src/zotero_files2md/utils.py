@@ -8,6 +8,8 @@ import unicodedata
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .settings import ReferenceFolderName
+
 if TYPE_CHECKING:
     from .models import AttachmentMetadata
 
@@ -30,6 +32,12 @@ def get_logger() -> logging.Logger:
 _slug_cleanup = re.compile(r"[^A-Za-z0-9._-]+")
 
 
+def _clean_slug_text(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text).strip()
+    text = _slug_cleanup.sub("-", text)
+    return re.sub(r"-{2,}", "-", text).strip("-._")
+
+
 def slugify(value: str | None, fallback: str) -> str:
     """Create a filesystem-friendly slug.
 
@@ -40,12 +48,11 @@ def slugify(value: str | None, fallback: str) -> str:
     Returns:
         A slug containing only ``A-Za-z0-9._-`` characters.
     """
-    text = value or ""
-    text = unicodedata.normalize("NFKD", text).strip()
-    text = _slug_cleanup.sub("-", text)
-    text = re.sub(r"-{2,}", "-", text).strip("-._")
+    text = _clean_slug_text(value or "")
     if not text:
-        text = fallback
+        text = _clean_slug_text(fallback)
+    if not text:
+        text = "item"
     return text[:120]  # keep filenames manageable
 
 
@@ -55,16 +62,34 @@ def ensure_directory(path: Path) -> Path:
     return path
 
 
-def compute_output_path(attachment: "AttachmentMetadata", output_dir: Path) -> Path:
+def compute_output_path(
+    attachment: "AttachmentMetadata",
+    output_dir: Path,
+    reference_folder_name: ReferenceFolderName = "citation-key",
+) -> Path:
     """Compute the expected output path for an attachment.
 
     Args:
         attachment: Attachment metadata describing the source file.
         output_dir: Base output directory for markdown files.
+        reference_folder_name: Naming strategy for each reference folder.
 
     Returns:
         The full path where the markdown file would be written.
     """
-    parent_slug = slugify(attachment.parent_title, attachment.parent_item_key or "item")
+    if reference_folder_name == "item-title":
+        parent_value = attachment.parent_title
+        parent_fallback = attachment.parent_item_key or attachment.parent_citation_key or "item"
+    elif reference_folder_name == "citation-key":
+        parent_value = attachment.parent_citation_key or attachment.parent_title
+        parent_fallback = attachment.parent_item_key or "item"
+    else:
+        msg = (
+            "reference_folder_name must be one of: "
+            f"'citation-key', 'item-title'. Got {reference_folder_name!r}."
+        )
+        raise ValueError(msg)
+
+    parent_slug = slugify(parent_value, parent_fallback)
     filename_base = slugify(attachment.title, attachment.attachment_key)
     return output_dir / parent_slug / f"{filename_base}.md"

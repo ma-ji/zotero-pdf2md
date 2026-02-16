@@ -25,6 +25,7 @@ def test_settings_initialisation(tmp_path: Path) -> None:
         chunk_size=25,
         max_workers=4,
         image_processing="PLACEHOLDER",
+        reference_folder_name="ITEM-TITLE",
     )
 
     assert settings.api_key == "abc123"
@@ -40,12 +41,14 @@ def test_settings_initialisation(tmp_path: Path) -> None:
     assert settings.max_workers == 4
     assert settings.workers_per_gpu == 1
     assert settings.image_processing == "placeholder"
+    assert settings.reference_folder_name == "item-title"
 
     summary = settings.to_cli_summary()
-    assert "Library type: user" in summary[0]
-    assert "Library ID: 654321" in summary[1]
-    assert "Filters: collections=['Collection'], tags=['Tag'], limit=5" in summary[4]
-    assert "Max workers: 4" in summary[8]
+    assert "Library type: user" in summary
+    assert "Library ID: 654321" in summary
+    assert "Reference folder name: item-title" in summary
+    assert "Filters: collections=['Collection'], tags=['Tag'], limit=5" in summary
+    assert "Max workers: 4" in summary
     assert "Workers per GPU: 1" in summary
     assert "Image processing: placeholder" in summary
 
@@ -96,6 +99,15 @@ def test_settings_initialisation(tmp_path: Path) -> None:
             },
             ValueError,
         ),
+        (
+            {
+                "api_key": "abc",
+                "library_id": "1",
+                "library_type": "user",
+                "reference_folder_name": "unknown",
+            },
+            ValueError,
+        ),
     ],
 )
 def test_settings_validation_errors(
@@ -113,7 +125,38 @@ def test_settings_validation_errors(
 
 
 def test_compute_output_path(tmp_path: Path) -> None:
-    """Test that compute_output_path returns the expected path."""
+    """Test the default reference-folder naming strategy."""
+    attachment = AttachmentMetadata(
+        attachment_key="ABC123",
+        parent_item_key="PARENT1",
+        title="Test Paper",
+        parent_title="Author 2023",
+        parent_citation_key="smith2023foundations",
+        filename="test.pdf",
+    )
+
+    result = compute_output_path(attachment, tmp_path)
+    expected = tmp_path / "smith2023foundations" / "Test-Paper.md"
+    assert result == expected
+
+
+def test_compute_output_path_with_item_title_folders(tmp_path: Path) -> None:
+    attachment = AttachmentMetadata(
+        attachment_key="ABC123",
+        parent_item_key="PARENT1",
+        title="Test Paper",
+        parent_title="Author 2023",
+        parent_citation_key="smith2023foundations",
+        filename="test.pdf",
+    )
+
+    result = compute_output_path(attachment, tmp_path, "item-title")
+    expected = tmp_path / "Author-2023" / "Test-Paper.md"
+    assert result == expected
+
+
+def test_compute_output_path_with_missing_citation_key(tmp_path: Path) -> None:
+    """Test citation-key mode fallback to parent title when key is missing."""
     attachment = AttachmentMetadata(
         attachment_key="ABC123",
         parent_item_key="PARENT1",
@@ -122,13 +165,13 @@ def test_compute_output_path(tmp_path: Path) -> None:
         filename="test.pdf",
     )
 
-    result = compute_output_path(attachment, tmp_path)
+    result = compute_output_path(attachment, tmp_path, "citation-key")
     expected = tmp_path / "Author-2023" / "Test-Paper.md"
     assert result == expected
 
 
 def test_compute_output_path_with_fallback(tmp_path: Path) -> None:
-    """Test compute_output_path when title or parent_title are None."""
+    """Test compute_output_path fallback when metadata is missing."""
     attachment = AttachmentMetadata(
         attachment_key="ABC123",
         parent_item_key="PARENT1",

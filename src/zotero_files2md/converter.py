@@ -35,7 +35,11 @@ def convert_attachment_to_markdown(
         "Converting attachment %s using file %s", attachment.attachment_key, file_path
     )
 
-    output_path = compute_output_path(attachment, settings.output_dir)
+    output_path = compute_output_path(
+        attachment,
+        settings.output_dir,
+        settings.reference_folder_name,
+    )
 
     if output_path.exists() and not settings.overwrite:
         logger.info("Skipping existing file: %s", output_path)

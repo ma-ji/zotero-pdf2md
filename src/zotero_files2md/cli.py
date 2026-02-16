@@ -7,7 +7,12 @@ from typing import List, Optional
 
 import typer
 
-from .settings import ExportSettings, LibraryType, parse_collection_output_pairs
+from .settings import (
+    ExportSettings,
+    LibraryType,
+    ReferenceFolderName,
+    parse_collection_output_pairs,
+)
 from .utils import get_logger
 
 app = typer.Typer(
@@ -128,6 +133,15 @@ def export_command(
         case_sensitive=False,
         help="How to handle images in Markdown output (embed, placeholder, drop).",
     ),
+    reference_folder_name: ReferenceFolderName = typer.Option(
+        "citation-key",
+        "--reference-folder-name",
+        case_sensitive=False,
+        help=(
+            "How to name each reference folder "
+            "('citation-key' or 'item-title')."
+        ),
+    ),
     use_multi_gpu: bool = typer.Option(
         True,
         "--use-multi-gpu/--no-use-multi-gpu",
@@ -165,6 +179,7 @@ def export_command(
             image_resolution_scale=image_resolution_scale,
             image_processing=image_processing,
             use_multi_gpu=use_multi_gpu,
+            reference_folder_name=reference_folder_name,
         )
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -278,6 +293,15 @@ def export_batch_command(
         case_sensitive=False,
         help="How to handle images in Markdown output (embed, placeholder, drop).",
     ),
+    reference_folder_name: ReferenceFolderName = typer.Option(
+        "citation-key",
+        "--reference-folder-name",
+        case_sensitive=False,
+        help=(
+            "How to name each reference folder "
+            "('citation-key' or 'item-title')."
+        ),
+    ),
     use_multi_gpu: bool = typer.Option(
         True,
         "--use-multi-gpu/--no-use-multi-gpu",
@@ -320,6 +344,7 @@ def export_batch_command(
             image_resolution_scale=image_resolution_scale,
             image_processing=image_processing,
             use_multi_gpu=use_multi_gpu,
+            reference_folder_name=reference_folder_name,
         )
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc

@@ -10,7 +10,7 @@ Export file attachments (for example PDF, Word, HTML, CSV, images) stored in a Z
 - Downloads eligible attachments (imported files only) and converts them to Markdown via Docling
 - Supports **Multi-GPU** acceleration for document conversion (automatic distribution across available GPUs)
 - Configurable Docling pipeline (OCR, picture description, image resolution)
-- Organises exported Markdown by parent item and attachment titles
+- Organises exported Markdown by reference folders named from citation key (default) or item title
 - Supports dry-run mode, overwrite behaviour, chunk-size tuning
 - Provides both a CLI and a Python API for programmatic usage
 
@@ -47,6 +47,12 @@ To upgrade the package to the latest version from GitHub:
 pip install --upgrade git+https://github.com/ma-ji/zotero-files2md.git#egg=zotero-files2md
 ```
 
+To force reinstall from GitHub source:
+
+```bash
+pip install --upgrade --force-reinstall git+https://github.com/ma-ji/zotero-files2md.git#egg=zotero-files2md
+```
+
 To install a specific tag or branch, append `@ref`, for example:
 
 ```bash
@@ -80,6 +86,7 @@ zotero-files2md export \
     --do-picture-description \
     --image-resolution-scale 4.0 \
     --image-processing embed \
+    --reference-folder-name citation-key \
     --use-multi-gpu \
     --log-level debug
 ```
@@ -128,6 +135,7 @@ zotero-files2md export-batch \
 | `--do-picture-description` | Enable GenAI picture description (slower). | False |
 | `--image-resolution-scale N` | Image resolution scale for Docling. | 4.0 |
 | `--image-processing MODE` | How to handle images in Markdown output (`embed`, `placeholder`, `drop`). | `embed` |
+| `--reference-folder-name MODE` | How to name each reference folder (`citation-key` or `item-title`). | `citation-key` |
 | `--use-multi-gpu` / `--no-use-multi-gpu` | Distribute processing across available GPUs. | True |
 | `--log-level LEVEL` | Logging verbosity (`critical`, `error`, `warning`, `info`, `debug`). | `info` |
 
@@ -137,11 +145,19 @@ For each processed attachment:
 
 ```
 output_dir/
-└── <parent-item-slug>/
+└── <reference-folder-slug>/
     └── <attachment-title-slug>.md
 ```
 
-For example:
+Default (`--reference-folder-name citation-key`) example:
+
+```
+/exports/
+└── smith2023foundations/
+    └── appendix-a-methods.md
+```
+
+Alternative (`--reference-folder-name item-title`) example:
 
 ```
 /exports/
@@ -169,6 +185,7 @@ settings = ExportSettings(
     force_full_page_ocr=False,
     do_picture_description=False,
     image_processing="embed",
+    reference_folder_name="citation-key",
 )
 
 summary = export_library(settings)

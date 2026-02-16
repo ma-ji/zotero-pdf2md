@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from datetime import datetime
+import re
 from typing import Iterable, Iterator
 
 from pyzotero import zotero as zotero_api
@@ -14,6 +15,10 @@ from .settings import ExportSettings
 from .utils import get_logger
 
 logger = get_logger()
+_citation_key_pattern = re.compile(
+    r"^\s*(?:citation\s*key|citationkey|citekey)\s*:\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
 
 
 class ZoteroClient(AbstractContextManager["ZoteroClient"]):
@@ -153,6 +158,9 @@ class ZoteroClient(AbstractContextManager["ZoteroClient"]):
                         parent_title=parent.get("data", {}).get("title")
                         if parent
                         else None,
+                        parent_citation_key=self._extract_parent_citation_key(parent)
+                        if parent
+                        else None,
                         filename=data.get("filename"),
                         collections=all_collections,
                         tags=all_tags,
@@ -209,6 +217,29 @@ class ZoteroClient(AbstractContextManager["ZoteroClient"]):
                 )
                 self._parent_cache[parent_key] = {}
         return self._parent_cache[parent_key]
+
+    @staticmethod
+    def _extract_parent_citation_key(parent: dict) -> str | None:
+        data = parent.get("data", {}) if parent else {}
+
+        direct_key = data.get("citationKey")
+        if isinstance(direct_key, str):
+            cleaned = direct_key.strip()
+            if cleaned:
+                return cleaned
+
+        extra = data.get("extra")
+        if not isinstance(extra, str):
+            return None
+
+        for line in extra.splitlines():
+            match = _citation_key_pattern.match(line)
+            if match:
+                key = match.group(1).strip()
+                if key:
+                    return key
+
+        return None
 
     @staticmethod
     def _is_downloadable_attachment(data: dict) -> bool:
