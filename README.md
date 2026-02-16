@@ -53,6 +53,12 @@ To force reinstall from GitHub source:
 pip install --upgrade --force-reinstall git+https://github.com/ma-ji/zotero-files2md.git#egg=zotero-files2md
 ```
 
+If you only want to reinstall `zotero-files2md` itself (without reinstalling dependencies):
+
+```bash
+pip install --upgrade --force-reinstall --no-deps git+https://github.com/ma-ji/zotero-files2md.git#egg=zotero-files2md
+```
+
 To install a specific tag or branch, append `@ref`, for example:
 
 ```bash
