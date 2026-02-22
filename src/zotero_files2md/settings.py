@@ -79,6 +79,7 @@ class ExportSettings:
     do_picture_description: bool = False
     image_resolution_scale: float = 4.0
     image_processing: ImageProcessing = "embed"
+    page_sections: bool = True
     use_multi_gpu: bool = True
 
     def __post_init__(self) -> None:
@@ -153,6 +154,7 @@ class ExportSettings:
         do_picture_description: bool = False,
         image_resolution_scale: float = 4.0,
         image_processing: ImageProcessing = "embed",
+        page_sections: bool = True,
         use_multi_gpu: bool = True,
         reference_folder_name: ReferenceFolderName = "citation-key",
     ) -> "ExportSettings":
@@ -174,6 +176,7 @@ class ExportSettings:
             do_picture_description=do_picture_description,
             image_resolution_scale=image_resolution_scale,
             image_processing=image_processing,
+            page_sections=page_sections,
             use_multi_gpu=use_multi_gpu,
             reference_folder_name=reference_folder_name,
         )
@@ -209,5 +212,6 @@ class ExportSettings:
             f"Picture description: {self.do_picture_description}",
             f"Image resolution scale: {self.image_resolution_scale}",
             f"Image processing: {self.image_processing}",
+            f"Page sections: {self.page_sections}",
             f"Use multi GPU: {self.use_multi_gpu}",
         ]

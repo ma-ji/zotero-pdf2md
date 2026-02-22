@@ -10,6 +10,7 @@ Export file attachments (for example PDF, Word, HTML, CSV, images) stored in a Z
 - Downloads eligible attachments (imported files only) and converts them to Markdown via Docling
 - Supports **Multi-GPU** acceleration for document conversion (automatic distribution across available GPUs)
 - Configurable Docling pipeline (OCR, picture description, image resolution)
+- Default machine-safe per-page header/body/footer section markers in Markdown output
 - Organises exported Markdown by reference folders named from citation key (default) or item title
 - Supports dry-run mode, overwrite behaviour, chunk-size tuning
 - Provides both a CLI and a Python API for programmatic usage
@@ -92,6 +93,7 @@ zotero-files2md export \
     --do-picture-description \
     --image-resolution-scale 4.0 \
     --image-processing embed \
+    --no-page-sections \
     --reference-folder-name citation-key \
     --use-multi-gpu \
     --log-level debug
@@ -141,6 +143,7 @@ zotero-files2md export-batch \
 | `--do-picture-description` | Enable GenAI picture description (slower). | False |
 | `--image-resolution-scale N` | Image resolution scale for Docling. | 4.0 |
 | `--image-processing MODE` | How to handle images in Markdown output (`embed`, `placeholder`, `drop`). | `embed` |
+| `--page-sections` / `--no-page-sections` | Include per-page machine-safe header/body/footer section markers in Markdown output. | True |
 | `--reference-folder-name MODE` | How to name each reference folder (`citation-key` or `item-title`). | `citation-key` |
 | `--use-multi-gpu` / `--no-use-multi-gpu` | Distribute processing across available GPUs. | True |
 | `--log-level LEVEL` | Logging verbosity (`critical`, `error`, `warning`, `info`, `debug`). | `info` |
@@ -171,6 +174,23 @@ Alternative (`--reference-folder-name item-title`) example:
     └── appendix-a-methods.md
 ```
 
+When `--page-sections` is enabled (default), each page includes explicit header/body/footer
+section delimiters without Markdown heading syntax:
+
+```text
+[[[PAGE:1|HEADER|START]]]
+... header text or [[[PAGE:1|HEADER|EMPTY]]]
+[[[PAGE:1|HEADER|END]]]
+
+[[[PAGE:1|BODY|START]]]
+... body text or [[[PAGE:1|BODY|EMPTY]]]
+[[[PAGE:1|BODY|END]]]
+
+[[[PAGE:1|FOOTER|START]]]
+... footer text or [[[PAGE:1|FOOTER|EMPTY]]]
+[[[PAGE:1|FOOTER|END]]]
+```
+
 ## Programmatic Usage
 
 ```python
@@ -191,6 +211,7 @@ settings = ExportSettings(
     force_full_page_ocr=False,
     do_picture_description=False,
     image_processing="embed",
+    page_sections=True,  # default; set False to disable section markers
     reference_folder_name="citation-key",
 )
 

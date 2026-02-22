@@ -15,6 +15,11 @@ from .utils import compute_output_path, ensure_directory, get_logger
 logger = get_logger()
 _converter_local = local()
 
+PAGE_BREAK_MARKER = "--- Page Break ---"
+PAGE_BREAK_PLACEHOLDER = f"\n\n{PAGE_BREAK_MARKER}\n\n"
+SECTION_MARKER_PREFIX = "[[[PAGE:"
+SECTION_MARKER_SUFFIX = "]]]"
+
 
 def convert_attachment_to_markdown(
     attachment: AttachmentMetadata,
@@ -215,11 +220,97 @@ def _render_markdown(
         image_mode = ImageRefMode.EMBEDDED
         image_placeholder = "<!-- image -->"
 
+    if settings.page_sections:
+        return _render_markdown_with_page_sections(
+            document=result.document,
+            image_mode=image_mode,
+            image_placeholder=image_placeholder,
+        )
+
     return result.document.export_to_markdown(
         image_placeholder=image_placeholder,
         image_mode=image_mode,
-        page_break_placeholder="\n\n--- Page Break ---\n\n",
+        page_break_placeholder=PAGE_BREAK_PLACEHOLDER,
     )
+
+
+def _render_markdown_with_page_sections(
+    *,
+    document,
+    image_mode,
+    image_placeholder: str,
+) -> str:
+    """Render Markdown with explicit machine-safe page header/body/footer sections."""
+    from docling_core.types.doc.document import ContentLayer
+    from docling_core.types.doc.labels import DocItemLabel
+
+    page_numbers = _get_page_numbers(document)
+    if not page_numbers:
+        return document.export_to_markdown(
+            image_placeholder=image_placeholder,
+            image_mode=image_mode,
+            page_break_placeholder=PAGE_BREAK_PLACEHOLDER,
+        )
+
+    chunks: list[str] = []
+    last_idx = len(page_numbers) - 1
+    for idx, page_no in enumerate(page_numbers):
+        header_text = document.export_to_markdown(
+            page_no=page_no,
+            labels={DocItemLabel.PAGE_HEADER},
+            included_content_layers={ContentLayer.FURNITURE},
+        ).strip()
+        body_text = document.export_to_markdown(
+            page_no=page_no,
+            image_placeholder=image_placeholder,
+            image_mode=image_mode,
+            included_content_layers={ContentLayer.BODY},
+        ).strip()
+        footer_text = document.export_to_markdown(
+            page_no=page_no,
+            labels={DocItemLabel.PAGE_FOOTER},
+            included_content_layers={ContentLayer.FURNITURE},
+        ).strip()
+
+        chunks.extend(_format_section_block(page_no, "HEADER", header_text))
+        chunks.extend(_format_section_block(page_no, "BODY", body_text))
+        chunks.extend(_format_section_block(page_no, "FOOTER", footer_text))
+
+        if idx < last_idx:
+            chunks.append(PAGE_BREAK_MARKER)
+
+    return "\n\n".join(chunks).strip()
+
+
+def _get_page_numbers(document) -> list[int]:
+    from docling_core.types.doc.document import ContentLayer
+
+    page_numbers = sorted(document.pages.keys())
+    if page_numbers:
+        return page_numbers
+
+    discovered: set[int] = set()
+    for item, _ in document.iterate_items(
+        with_groups=True,
+        included_content_layers=set(ContentLayer),
+    ):
+        if hasattr(item, "prov") and item.prov:
+            discovered.update(prov.page_no for prov in item.prov)
+    return sorted(discovered)
+
+
+def _format_section_block(page_no: int, section: str, content: str) -> list[str]:
+    start = _section_marker(page_no, section, "START")
+    end = _section_marker(page_no, section, "END")
+    if content:
+        payload = content
+    else:
+        payload = _section_marker(page_no, section, "EMPTY")
+    return [start, payload, end]
+
+
+def _section_marker(page_no: int, section: str, boundary: str) -> str:
+    return f"{SECTION_MARKER_PREFIX}{page_no}|{section}|{boundary}{SECTION_MARKER_SUFFIX}"
 
 
 def _resolve_docling_device(settings: ExportSettings, device_type) -> "AcceleratorDevice":

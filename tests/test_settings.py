@@ -41,6 +41,7 @@ def test_settings_initialisation(tmp_path: Path) -> None:
     assert settings.max_workers == 4
     assert settings.workers_per_gpu == 1
     assert settings.image_processing == "placeholder"
+    assert settings.page_sections is True
     assert settings.reference_folder_name == "item-title"
 
     summary = settings.to_cli_summary()
@@ -51,6 +52,7 @@ def test_settings_initialisation(tmp_path: Path) -> None:
     assert "Max workers: 4" in summary
     assert "Workers per GPU: 1" in summary
     assert "Image processing: placeholder" in summary
+    assert "Page sections: True" in summary
 
 
 @pytest.mark.parametrize(

@@ -133,6 +133,14 @@ def export_command(
         case_sensitive=False,
         help="How to handle images in Markdown output (embed, placeholder, drop).",
     ),
+    page_sections: bool = typer.Option(
+        True,
+        "--page-sections/--no-page-sections",
+        help=(
+            "Emit machine-safe per-page header/body/footer section markers in Markdown "
+            "(enabled by default)."
+        ),
+    ),
     reference_folder_name: ReferenceFolderName = typer.Option(
         "citation-key",
         "--reference-folder-name",
@@ -178,6 +186,7 @@ def export_command(
             do_picture_description=do_picture_description,
             image_resolution_scale=image_resolution_scale,
             image_processing=image_processing,
+            page_sections=page_sections,
             use_multi_gpu=use_multi_gpu,
             reference_folder_name=reference_folder_name,
         )
@@ -293,6 +302,14 @@ def export_batch_command(
         case_sensitive=False,
         help="How to handle images in Markdown output (embed, placeholder, drop).",
     ),
+    page_sections: bool = typer.Option(
+        True,
+        "--page-sections/--no-page-sections",
+        help=(
+            "Emit machine-safe per-page header/body/footer section markers in Markdown "
+            "(enabled by default)."
+        ),
+    ),
     reference_folder_name: ReferenceFolderName = typer.Option(
         "citation-key",
         "--reference-folder-name",
@@ -343,6 +360,7 @@ def export_batch_command(
             do_picture_description=do_picture_description,
             image_resolution_scale=image_resolution_scale,
             image_processing=image_processing,
+            page_sections=page_sections,
             use_multi_gpu=use_multi_gpu,
             reference_folder_name=reference_folder_name,
         )
