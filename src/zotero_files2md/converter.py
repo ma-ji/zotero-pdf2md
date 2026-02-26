@@ -6,7 +6,7 @@ import gc
 from dataclasses import dataclass
 from pathlib import Path
 from threading import local
-from typing import Literal
+from typing import Any, Literal
 
 from .models import AttachmentMetadata
 from .settings import ExportSettings
@@ -159,7 +159,89 @@ def get_pipeline_options(
     pipeline_options.accelerator_options = AcceleratorOptions(
         num_threads=num_threads, device=device
     )
+    _configure_ocr_backend_for_device(pipeline_options, device, AcceleratorDevice)
     return pipeline_options
+
+
+def _configure_ocr_backend_for_device(
+    pipeline_options,
+    device,
+    device_type,
+) -> None:
+    if not _should_use_gpu_ocr(device, device_type):
+        return
+
+    backend_choice = _pick_gpu_ocr_backend()
+    if backend_choice is None:
+        return
+
+    from docling.datamodel.pipeline_options import RapidOcrOptions
+
+    backend, rapidocr_params = backend_choice
+    current_ocr_options = pipeline_options.ocr_options
+    pipeline_options.ocr_options = RapidOcrOptions(
+        force_full_page_ocr=current_ocr_options.force_full_page_ocr,
+        bitmap_area_threshold=current_ocr_options.bitmap_area_threshold,
+        backend=backend,
+        rapidocr_params=rapidocr_params,
+    )
+    logger.info(
+        "Configured Docling OCR backend: rapidocr/%s (GPU-preferred).",
+        backend,
+    )
+
+
+def _should_use_gpu_ocr(device, device_type) -> bool:
+    if device == device_type.CUDA:
+        return True
+    if device != device_type.AUTO:
+        return False
+    try:
+        import torch
+    except Exception:
+        return False
+    try:
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def _pick_gpu_ocr_backend() -> tuple[str, dict[str, Any]] | None:
+    try:
+        import onnxruntime as ort
+    except Exception:
+        ort = None
+
+    if ort is not None:
+        try:
+            providers = set(ort.get_available_providers())
+        except Exception:
+            providers = set()
+        if "CUDAExecutionProvider" in providers:
+            return (
+                "onnxruntime",
+                {
+                    "EngineConfig.onnxruntime.use_cuda": True,
+                    "EngineConfig.onnxruntime.cuda_ep_cfg.device_id": 0,
+                },
+            )
+
+    try:
+        import torch
+    except Exception:
+        return None
+    try:
+        if torch.cuda.is_available():
+            return (
+                "torch",
+                {
+                    "EngineConfig.torch.use_cuda": True,
+                    "EngineConfig.torch.cuda_ep_cfg.device_id": 0,
+                },
+            )
+    except Exception:
+        return None
+    return None
 
 
 def _render_markdown(
